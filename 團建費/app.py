@@ -177,7 +177,7 @@ if st.button("確認新增紀錄", use_container_width=True, type="primary"):
         st.rerun()
 
 # ---------------------------------------------------------
-# 6. 本月消費明細列表 (線上編輯模式：可直接雙擊修改、刪除列)
+# 6. 本月消費明細列表 (已修正 SelectboxColumn 不支援 alignment 的錯誤)
 # ---------------------------------------------------------
 st.divider()
 st.subheader("📋 本月消費明細列表 (雙擊表格儲存格可直接修改金額或內容)")
@@ -187,21 +187,21 @@ if not st.session_state.expenses_df.empty:
         st.session_state.expenses_df,
         use_container_width=True,
         hide_index=True,
-        num_rows="dynamic",  # 允許刪除或新增整列
+        num_rows="dynamic",
         column_config={
             "日期": st.column_config.TextColumn("日期", alignment="center"),
-            "類型": st.column_config.SelectboxColumn("類型", options=["下午茶", "零食"], alignment="center"),
+            "類型": st.column_config.SelectboxColumn("類型", options=["下午茶", "零食"]), # 已移除 alignment 參數
             "點心/店家": st.column_config.TextColumn("點心 / 店家", alignment="left"),
             "飲料": st.column_config.TextColumn("飲料", alignment="left"),
             "金額": st.column_config.NumberColumn(
                 "金額",
-                format="$ %d",        # 帶有 $ 符號與千分位
-                alignment="center",   # 金額置中顯示
+                format="$ %d",
+                alignment="center",
                 min_value=0
             ),
         }
     )
-    # 同步修改後的資料回 Session State，讓上面的儀表板數字即時連動！
+    # 同步修改後的資料回 Session State
     if not edited_df.equals(st.session_state.expenses_df):
         st.session_state.expenses_df = edited_df
         st.rerun()

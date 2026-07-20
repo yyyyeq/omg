@@ -5,7 +5,7 @@ from datetime import datetime
 # ---------------------------------------------------------
 # 1. 網頁基本設定
 # ---------------------------------------------------------
-st.set_page_config(page_title="🍵 團建費登記系統", layout="wide", page_icon="🍵")
+st.set_page_config(page_title=" 團建費登記系統", layout="wide", page_icon="🍵")
 
 # CSS 自訂樣式微調
 st.markdown("""

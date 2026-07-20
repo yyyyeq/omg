@@ -80,41 +80,48 @@ with b_col2:
 st.divider()
 
 # ---------------------------------------------------------
-# 5. 新增消費紀錄
+# 5. 新增消費紀錄（改用獨立元件，確保輸入與點擊 100% 順暢）
 # ---------------------------------------------------------
 st.subheader("➕ 新增消費紀錄")
-with st.form("expense_form", clear_on_submit=True):
-    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([2, 2, 3, 3, 2])
-    with f_col1:
-        exp_date = st.date_input("日期", datetime.now())
-    with f_col2:
-        exp_type = st.selectbox("類型", ["下午茶", "零食"])
-    with f_col3:
-        exp_snack = st.text_input("點心 / 店家", placeholder="如：50嵐")
-    with f_col4:
-        exp_drink = st.text_input("飲料", placeholder="如：四季春茶")
-    with f_col5:
-        exp_amount = st.number_input("金額 ($)", min_value=0, value=0, step=10)
-        
-    submitted = st.form_submit_button("新增紀錄", use_container_width=True)
-    if submitted:
-        if exp_amount > 0 and exp_snack.strip() != "":
-            new_data = pd.DataFrame([{
-                "日期": str(exp_date),
-                "類型": exp_type,
-                "點心/店家": exp_snack,
-                "飲料": exp_drink,
-                "金額": int(exp_amount)
-            }])
-            st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_data], ignore_index=True)
-            st.success("✅ 新增成功！請記得點擊上方「儲存並下載」按鈕備份喔！")
-            st.rerun()
-        else:
-            st.warning("⚠️ 請輸入點心/店家名稱與大於 0 的金額！")
+
+f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([2, 2, 3, 3, 2])
+with f_col1:
+    exp_date = st.date_input("日期", datetime.now())
+with f_col2:
+    exp_type = st.selectbox("類型", ["下午茶", "零食"])
+with f_col3:
+    exp_snack = st.text_input("點心 / 店家", placeholder="如：50嵐")
+with f_col4:
+    exp_drink = st.text_input("飲料", placeholder="如：四季春茶")
+with f_col5:
+    exp_amount_str = st.text_input("金額 ($)", placeholder="請輸入金額，如：120")
+
+# 提交按鈕
+if st.button("➕ 新增紀錄", use_container_width=True, type="primary"):
+    # 清理輸入的金額格式
+    clean_amount = exp_amount_str.strip().replace(",", "")
+    
+    # 檢查驗證
+    if not exp_snack.strip():
+        st.warning("⚠️ 請輸入「點心 / 店家」名稱！")
+    elif not clean_amount.isdigit() or int(clean_amount) <= 0:
+        st.warning("⚠️ 請在金額欄位輸入「大於 0 的純數字」！")
+    else:
+        new_data = pd.DataFrame([{
+            "日期": str(exp_date),
+            "類型": exp_type,
+            "點心/店家": exp_snack.strip(),
+            "飲料": exp_drink.strip(),
+            "金額": int(clean_amount)
+        }])
+        st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_data], ignore_index=True)
+        st.success("✅ 新增成功！")
+        st.rerun()
 
 # ---------------------------------------------------------
 # 6. 消費明細列表
 # ---------------------------------------------------------
+st.divider()
 st.subheader("📋 本月消費明細列表")
 if not st.session_state.expenses_df.empty:
     st.dataframe(st.session_state.expenses_df, use_container_width=True)

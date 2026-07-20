@@ -6,7 +6,7 @@ from supabase import create_client, Client
 # ---------------------------------------------------------
 # 1. 網頁基本設定與 Supabase 連線
 # ---------------------------------------------------------
-st.set_page_config(page_title="🍵 團建費登記系統", layout="wide", page_icon="🍵")
+st.set_page_config(page_title=" 團建費登記系統", layout="wide", page_icon="🍵")
 
 st.markdown("""
     <style>

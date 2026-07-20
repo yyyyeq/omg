@@ -6,7 +6,7 @@ from supabase import create_client, Client
 # ---------------------------------------------------------
 # 1. 網頁基本設定與 Supabase 連線
 # ---------------------------------------------------------
-st.set_page_config(page_title=" 團建費登記系統", layout="wide", page_icon="🍵")
+st.set_page_config(page_title="🍵 團建費登記系統", layout="wide", page_icon="🍵")
 
 st.markdown("""
     <style>
@@ -26,10 +26,10 @@ except Exception as e:
     st.error("⚠️ 雲端資料庫連線失敗，請檢查 Streamlit Cloud 的 Secrets 設定！")
     st.stop()
 
-# 從 Supabase 讀取最新資料
+# 從 Supabase 讀取最新資料 (明確指定 schema("public"))
 def get_expenses():
     try:
-        response = supabase.table("expenses").select("*").execute()
+        response = supabase.schema("public").table("expenses").select("*").execute()
         df = pd.DataFrame(response.data)
         if df.empty:
             return pd.DataFrame(columns=["id", "date", "type", "snack", "drink", "amount"])
@@ -150,8 +150,8 @@ with st.form("add_expense_form", clear_on_submit=True):
                 "drink": exp_drink.strip(),
                 "amount": int(clean_amount)
             }
-            # 寫入 Supabase
-            supabase.table("expenses").insert(new_data).execute()
+            # 寫入 Supabase (指定 public schema)
+            supabase.schema("public").table("expenses").insert(new_data).execute()
             st.success(f"✅ 已成功新增至雲端！")
             st.rerun()
 
@@ -178,8 +178,8 @@ def edit_record_dialog(row_id, row_data):
             "drink": new_drink.strip(),
             "amount": int(new_amount)
         }
-        # 更新 Supabase
-        supabase.table("expenses").update(updated_data).eq("id", row_id).execute()
+        # 更新 Supabase (指定 public schema)
+        supabase.schema("public").table("expenses").update(updated_data).eq("id", row_id).execute()
         st.success("修改成功！")
         st.rerun()
 
@@ -206,8 +206,8 @@ if not expenses_df.empty:
                 edit_record_dialog(row['id'], row)
         with card_col7:
             if st.button("🗑️ 刪除", key=f"del_{row['id']}", use_container_width=True):
-                # 從 Supabase 刪除
-                supabase.table("expenses").delete().eq("id", row['id']).execute()
+                # 從 Supabase 刪除 (指定 public schema)
+                supabase.schema("public").table("expenses").delete().eq("id", row['id']).execute()
                 st.rerun()
         st.markdown("<hr style='margin: 8px 0; border: 0.5px solid #f0f0f0;'>", unsafe_allow_html=True)
 else:

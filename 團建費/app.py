@@ -2,8 +2,24 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# 1. 網頁基本設定
-st.set_page_config(page_title="團建費登記系統", layout="wide")
+# 1. 網頁基本設定 (增加深色模式相容)
+st.set_page_config(page_title="🍵 團建費登記系統", layout="wide", page_icon="🍵")
+
+# CSS 樣式微調 (加強標題與區塊層次)
+st.markdown("""
+    <style>
+    /* 調整大標題樣式 */
+    h1 {
+        padding-bottom: 0.5rem;
+    }
+    /* 讓 Expander 裡面的標題更清晰 */
+    .st-emotion-cache-ke03o4 {
+        font-weight: bold;
+        color: #d11d1d;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("🍵 團建費登記系統")
 
 # 初始化 Session State (讓資料保存在當前階段)
@@ -17,8 +33,9 @@ st.sidebar.header("⚙️ 月度經費參數設定")
 
 people_count = st.sidebar.number_input("團隊人數", min_value=1, value=10, step=1)
 weeks_count = st.sidebar.number_input("本月週數", min_value=1, max_value=5, value=4, step=1)
-tea_unit_price = st.sidebar.number_input("下午茶單價（每人每週）", min_value=0, value=150, step=10)
-snack_unit_price = st.sidebar.number_input("零食單價（每人每週）", min_value=0, value=50, step=10)
+tea_unit_price = st.sidebar.number_input("下午茶單價 ($/人)", min_value=0, value=150, step=10)
+snack_unit_price = st.sidebar.number_input("零食單價 ($/人)", min_value=0, value=50, step=10)
+st.sidebar.markdown("---") # 分割線
 last_month_balance = st.sidebar.number_input("上月底餘額 ($)", value=0, step=100)
 
 # 計算經費
@@ -29,6 +46,8 @@ total_available = tea_budget + snack_budget + last_month_balance
 # ---------------------------------------------------------
 # 3. 主畫面：總覽儀表板
 # ---------------------------------------------------------
+st.subheader("📋 經費與預算總覽")
+
 df = st.session_state.expenses_df
 
 tea_spent = pd.to_numeric(df[df["類型"] == "下午茶"]["金額"], errors='coerce').sum() if not df.empty else 0
@@ -39,48 +58,91 @@ tea_remaining = tea_budget - tea_spent
 snack_remaining = snack_budget - snack_spent
 total_remaining = total_available - total_spent
 
-st.subheader("📊 經費與預算總覽")
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("下午茶總預算", f"${tea_budget:,.0f}", delta=f"剩 ${tea_remaining:,.0f}")
-col2.metric("零食總預算", f"${snack_budget:,.0f}", delta=f"剩 ${snack_remaining:,.0f}")
-col3.metric("上月結餘", f"${last_month_balance:,.0f}")
-col4.metric("本月可用總額", f"${total_available:,.0f}", delta=f"總剩餘 ${total_remaining:,.0f}")
+# 🎨 儀表板視覺提升：使用 HTML 製作卡片
+# 上半部：預算與支出
+dash_col1, dash_col2 = st.columns(2)
+
+with dash_col1:
+    st.markdown(f"""
+        <div style="background-color:#ffeaea; padding: 20px; border-radius: 10px; border: 1px solid #ffcccc; margin-bottom: 20px;">
+            <h4 style="margin: 0; color:#c62828;">🍵 下午茶專區</h4>
+            <div style="display: flex; justify-content: space-between; margin-top: 15px;">
+                <div>總預算: <b>${tea_budget:,.0f}</b></div>
+                <div>已支出: <b>${tea_spent:,.0f}</b></div>
+                <div style="color: {'green' if tea_remaining >= 0 else 'red'};">剩餘: <b>${tea_remaining:,.0f}</b></div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with dash_col2:
+    st.markdown(f"""
+        <div style="background-color:#e1f5fe; padding: 20px; border-radius: 10px; border: 1px solid #b3e5fc; margin-bottom: 20px;">
+            <h4 style="margin: 0; color:#0277bd;">🍪 零食專區</h4>
+            <div style="display: flex; justify-content: space-between; margin-top: 15px;">
+                <div>總預算: <b>${snack_budget:,.0f}</b></div>
+                <div>已支出: <b>${snack_spent:,.0f}</strong></div>
+                <div style="color: {'green' if snack_remaining >= 0 else 'red'};">剩餘: <b>${snack_remaining:,.0f}</b></div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+# 下半部：結餘與總結
+dash_col3, dash_col4 = st.columns(2)
+
+with dash_col3:
+    st.markdown(f"""
+        <div style="background-color:#f5f5f5; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0;">
+            <span style="font-size:1.1rem;">🔙 上月結餘：</span>
+            <span style="font-size:1.4rem; font-weight: bold; color: #616161;">${last_month_balance:,.0f}</span>
+        </div>
+    """, unsafe_allow_html=True)
+
+with dash_col4:
+    st.markdown(f"""
+        <div style="background-color:{'#e8f5e9' if total_remaining >= 0 else '#ffecb3'}; padding: 15px; border-radius: 8px; border: 1px solid {'#a5d6a7' if total_remaining >= 0 else '#ffe082'};">
+            <span style="font-size:1.1rem;">🎯 本月剩餘總額：</span>
+            <span style="font-size:1.4rem; font-weight: bold; color: {'#1b5e20' if total_remaining >= 0 else '#c62828'};">${total_remaining:,.0f}</span>
+        </div>
+    """, unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# 4. 資料備份與恢復（Expander 收納）
+# ---------------------------------------------------------
+st.divider()
+with st.expander("💾 資料備份與還原 ( CSV 檔案 )"):
+    b_col1, b_col2 = st.columns(2)
+
+    with b_col1:
+        # 下載 CSV 按鈕
+        csv_bytes = st.session_state.expenses_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button(
+            label="📥 儲存並下載最新紀錄 (CSV)",
+            data=csv_bytes,
+            file_name=f"團建費明細備份_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+    with b_col2:
+        # 匯入 CSV
+        uploaded_file = st.file_uploader("📂 匯入舊的備份檔案 (CSV)", type=["csv"], label_visibility="collapsed")
+        if uploaded_file is not None:
+            try:
+                imported_df = pd.read_csv(uploaded_file)
+                # 簡單驗證欄位
+                if set(["日期", "類型", "點心/店家", "飲料", "金額"]).issubset(imported_df.columns):
+                    st.session_state.expenses_df = imported_df
+                    st.success("✅ 資料成功還原！")
+                    st.rerun()
+                else:
+                    st.error("⚠️ 檔案欄位不正確，匯入失敗！")
+            except Exception as e:
+                st.error("⚠️ 檔案格式不符，匯入失敗！")
 
 st.divider()
 
 # ---------------------------------------------------------
-# 4. 資料備份與恢復（匯入/匯出區塊）
-# ---------------------------------------------------------
-st.subheader("💾 資料備份與還原")
-b_col1, b_col2 = st.columns(2)
-
-with b_col1:
-    # 下載 CSV 按鈕
-    csv_bytes = st.session_state.expenses_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
-    st.download_button(
-        label="📥 儲存並下載最新紀錄 (CSV)",
-        data=csv_bytes,
-        file_name=f"團建費明細備份_{datetime.now().strftime('%Y%m%d')}.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
-
-with b_col2:
-    # 匯入 CSV
-    uploaded_file = st.file_uploader("📂 匯入舊的備份檔案 (CSV)", type=["csv"], label_visibility="collapsed")
-    if uploaded_file is not None:
-        try:
-            imported_df = pd.read_csv(uploaded_file)
-            st.session_state.expenses_df = imported_df
-            st.success("✅ 資料成功還原！")
-            st.rerun()
-        except Exception as e:
-            st.error("⚠️ 檔案格式不符，匯入失敗！")
-
-st.divider()
-
-# ---------------------------------------------------------
-# 5. 新增消費紀錄（改用獨立元件，確保輸入與點擊 100% 順暢）
+# 5. 新增消費紀錄
 # ---------------------------------------------------------
 st.subheader("➕ 新增消費紀錄")
 
@@ -92,12 +154,12 @@ with f_col2:
 with f_col3:
     exp_snack = st.text_input("點心 / 店家", placeholder="如：50嵐")
 with f_col4:
-    exp_drink = st.text_input("飲料", placeholder="如：四季春茶")
+    exp_drink = st.text_input("飲料 (可選填)", placeholder="如：四季春茶")
 with f_col5:
-    exp_amount_str = st.text_input("金額 ($)", placeholder="請輸入金額，如：120")
+    exp_amount_str = st.text_input("金額 ($)", placeholder="如：120")
 
-# 提交按鈕
-if st.button("➕ 新增紀錄", use_container_width=True, type="primary"):
+# 🎨 提交按鈕：調整為深藍色，寬度填滿，並增加邊距
+if st.button("確認新增紀錄", use_container_width=True, type="primary"):
     # 清理輸入的金額格式
     clean_amount = exp_amount_str.strip().replace(",", "")
     
@@ -115,15 +177,15 @@ if st.button("➕ 新增紀錄", use_container_width=True, type="primary"):
             "金額": int(clean_amount)
         }])
         st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_data], ignore_index=True)
-        st.success("✅ 新增成功！")
+        st.success(f"✅ 新增成功！已記錄「{exp_snack.strip()}」下午茶/零食。")
         st.rerun()
 
 # ---------------------------------------------------------
-# 6. 消費明細列表
+# 6. 消費明細列表 (使用 Expander 或獨立區塊)
 # ---------------------------------------------------------
 st.divider()
 st.subheader("📋 本月消費明細列表")
 if not st.session_state.expenses_df.empty:
-    st.dataframe(st.session_state.expenses_df, use_container_width=True)
+    st.dataframe(st.session_state.expenses_df, use_container_width=True, hide_index=True)
 else:
     st.info("目前還沒有任何紀錄，可以直接新增或匯入備份檔案！")

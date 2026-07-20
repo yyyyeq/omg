@@ -2,27 +2,28 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# 1. 網頁基本設定 (增加深色模式相容)
+# ---------------------------------------------------------
+# 1. 網頁基本設定
+# ---------------------------------------------------------
 st.set_page_config(page_title="🍵 團建費登記系統", layout="wide", page_icon="🍵")
 
-# CSS 樣式微調 (加強標題與區塊層次)
+# CSS 自訂樣式微調
 st.markdown("""
     <style>
     /* 調整大標題樣式 */
     h1 {
         padding-bottom: 0.5rem;
     }
-    /* 讓 Expander 裡面的標題更清晰 */
+    /* 加強 Expander 標題文字樣式 */
     .st-emotion-cache-ke03o4 {
         font-weight: bold;
-        color: #d11d1d;
     }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("🍵 團建費登記系統")
 
-# 初始化 Session State (讓資料保存在當前階段)
+# 初始化 Session State (確保資料在跨操作時保存)
 if "expenses_df" not in st.session_state:
     st.session_state.expenses_df = pd.DataFrame(columns=["日期", "類型", "點心/店家", "飲料", "金額"])
 
@@ -44,7 +45,7 @@ snack_budget = people_count * weeks_count * snack_unit_price
 total_available = tea_budget + snack_budget + last_month_balance
 
 # ---------------------------------------------------------
-# 3. 主畫面：總覽儀表板
+# 3. 主畫面：總覽儀表板 (卡片式視覺)
 # ---------------------------------------------------------
 st.subheader("📋 經費與預算總覽")
 
@@ -58,8 +59,7 @@ tea_remaining = tea_budget - tea_spent
 snack_remaining = snack_budget - snack_spent
 total_remaining = total_available - total_spent
 
-# 🎨 儀表板視覺提升：使用 HTML 製作卡片
-# 上半部：預算與支出
+# 上半部：預算與支出卡片
 dash_col1, dash_col2 = st.columns(2)
 
 with dash_col1:
@@ -80,7 +80,7 @@ with dash_col2:
             <h4 style="margin: 0; color:#0277bd;">🍪 零食專區</h4>
             <div style="display: flex; justify-content: space-between; margin-top: 15px;">
                 <div>總預算: <b>${snack_budget:,.0f}</b></div>
-                <div>已支出: <b>${snack_spent:,.0f}</strong></div>
+                <div>已支出: <b>${snack_spent:,.0f}</b></div>
                 <div style="color: {'green' if snack_remaining >= 0 else 'red'};">剩餘: <b>${snack_remaining:,.0f}</b></div>
             </div>
         </div>
@@ -106,7 +106,7 @@ with dash_col4:
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 4. 資料備份與恢復（Expander 收納）
+# 4. 資料備份與還原 (可收折 Expander)
 # ---------------------------------------------------------
 st.divider()
 with st.expander("💾 資料備份與還原 ( CSV 檔案 )"):
@@ -129,7 +129,6 @@ with st.expander("💾 資料備份與還原 ( CSV 檔案 )"):
         if uploaded_file is not None:
             try:
                 imported_df = pd.read_csv(uploaded_file)
-                # 簡單驗證欄位
                 if set(["日期", "類型", "點心/店家", "飲料", "金額"]).issubset(imported_df.columns):
                     st.session_state.expenses_df = imported_df
                     st.success("✅ 資料成功還原！")
@@ -139,11 +138,10 @@ with st.expander("💾 資料備份與還原 ( CSV 檔案 )"):
             except Exception as e:
                 st.error("⚠️ 檔案格式不符，匯入失敗！")
 
-st.divider()
-
 # ---------------------------------------------------------
 # 5. 新增消費紀錄
 # ---------------------------------------------------------
+st.divider()
 st.subheader("➕ 新增消費紀錄")
 
 f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([2, 2, 3, 3, 2])
@@ -158,12 +156,10 @@ with f_col4:
 with f_col5:
     exp_amount_str = st.text_input("金額 ($)", placeholder="如：120")
 
-# 🎨 提交按鈕：調整為深藍色，寬度填滿，並增加邊距
+# 新增按鈕
 if st.button("確認新增紀錄", use_container_width=True, type="primary"):
-    # 清理輸入的金額格式
     clean_amount = exp_amount_str.strip().replace(",", "")
     
-    # 檢查驗證
     if not exp_snack.strip():
         st.warning("⚠️ 請輸入「點心 / 店家」名稱！")
     elif not clean_amount.isdigit() or int(clean_amount) <= 0:
@@ -181,11 +177,27 @@ if st.button("確認新增紀錄", use_container_width=True, type="primary"):
         st.rerun()
 
 # ---------------------------------------------------------
-# 6. 消費明細列表 (使用 Expander 或獨立區塊)
+# 6. 本月消費明細列表 (優化：金額置中、放大顯示、數字格式化)
 # ---------------------------------------------------------
 st.divider()
 st.subheader("📋 本月消費明細列表")
+
 if not st.session_state.expenses_df.empty:
-    st.dataframe(st.session_state.expenses_df, use_container_width=True, hide_index=True)
+    st.dataframe(
+        st.session_state.expenses_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "日期": st.column_config.TextColumn("日期", alignment="center"),
+            "類型": st.column_config.TextColumn("類型", alignment="center"),
+            "點心/店家": st.column_config.TextColumn("點心 / 店家", alignment="left"),
+            "飲料": st.column_config.TextColumn("飲料", alignment="left"),
+            "金額": st.column_config.NumberColumn(
+                "金額",
+                format="$ %d",         # 設定金額自動帶出 $ 符號與千分位格式
+                alignment="center"     # 讓數字精確「置中」對齊
+            ),
+        }
+    )
 else:
     st.info("目前還沒有任何紀錄，可以直接新增或匯入備份檔案！")

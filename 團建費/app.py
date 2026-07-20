@@ -7,21 +7,11 @@ from datetime import datetime
 # ---------------------------------------------------------
 st.set_page_config(page_title="🍵 團建費登記系統", layout="wide", page_icon="🍵")
 
-# CSS 自訂樣式微調 (優化卡片外觀)
+# CSS 自訂樣式微調
 st.markdown("""
     <style>
     h1 { padding-bottom: 0.5rem; }
     .st-emotion-cache-ke03o4 { font-weight: bold; }
-    
-    /* 明細卡片樣式 */
-    .expense-card {
-        background-color: #ffffff;
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
-        padding: 15px 20px;
-        margin-bottom: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -30,6 +20,10 @@ st.title("🍵 團建費登記系統")
 # 初始化 Session State
 if "expenses_df" not in st.session_state:
     st.session_state.expenses_df = pd.DataFrame(columns=["日期", "類型", "點心/店家", "飲料", "金額"])
+
+# 清理 Session State 中的無效或空資料 (避免 None 報錯)
+if not st.session_state.expenses_df.empty:
+    st.session_state.expenses_df = st.session_state.expenses_df.dropna(subset=["點心/店家"]).reset_index(drop=True)
 
 # ---------------------------------------------------------
 # 2. 邊欄 (Sidebar)：經費參數設定
@@ -131,7 +125,7 @@ with st.expander("💾 資料備份與還原 ( CSV 檔案 )"):
             try:
                 imported_df = pd.read_csv(uploaded_file)
                 if set(["日期", "類型", "點心/店家", "飲料", "金額"]).issubset(imported_df.columns):
-                    st.session_state.expenses_df = imported_df
+                    st.session_state.expenses_df = imported_df.dropna(subset=["點心/店家"]).reset_index(drop=True)
                     st.success("✅ 資料成功還原！")
                     st.rerun()
                 else:
@@ -140,60 +134,68 @@ with st.expander("💾 資料備份與還原 ( CSV 檔案 )"):
                 st.error("⚠️ 檔案格式不符，匯入失敗！")
 
 # ---------------------------------------------------------
-# 5. 新增消費紀錄
+# 5. 新增消費紀錄 (使用 st.form 支援按 Enter 鍵提交)
 # ---------------------------------------------------------
 st.divider()
 st.subheader("➕ 新增消費紀錄")
 
-f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([2, 2, 3, 3, 2])
-with f_col1:
-    exp_date = st.date_input("日期", datetime.now())
-with f_col2:
-    exp_type = st.selectbox("類型", ["下午茶", "零食"])
-with f_col3:
-    exp_snack = st.text_input("點心 / 店家", placeholder="如：50嵐")
-with f_col4:
-    exp_drink = st.text_input("飲料 (可選填)", placeholder="如：四季春茶")
-with f_col5:
-    exp_amount_str = st.text_input("金額 ($)", placeholder="如：120")
+with st.form("add_expense_form", clear_on_submit=True):
+    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([2, 2, 3, 3, 2])
+    with f_col1:
+        exp_date = st.date_input("日期", datetime.now())
+    with f_col2:
+        exp_type = st.selectbox("類型", ["下午茶", "零食"])
+    with f_col3:
+        exp_snack = st.text_input("點心 / 店家", placeholder="如：哈堤手作三明治")
+    with f_col4:
+        exp_drink = st.text_input("飲料 (可選填)", placeholder="如：大茗")
+    with f_col5:
+        exp_amount_str = st.text_input("金額 ($)", placeholder="如：4877")
 
-if st.button("確認新增紀錄", use_container_width=True, type="primary"):
-    clean_amount = exp_amount_str.strip().replace(",", "")
-    
-    if not exp_snack.strip():
-        st.warning("⚠️ 請輸入「點心 / 店家」名稱！")
-    elif not clean_amount.isdigit() or int(clean_amount) <= 0:
-        st.warning("⚠️ 請在金額欄位輸入「大於 0 的純數字」！")
-    else:
-        new_data = pd.DataFrame([{
-            "日期": str(exp_date),
-            "類型": exp_type,
-            "點心/店家": exp_snack.strip(),
-            "飲料": exp_drink.strip(),
-            "金額": int(clean_amount)
-        }])
-        st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_data], ignore_index=True)
-        st.success(f"✅ 新增成功！已記錄「{exp_snack.strip()}」。")
-        st.rerun()
+    # 表單提交按鈕 (在任何文字框輸入完按 Enter 均可觸發)
+    submitted = st.form_submit_button("確認新增紀錄 (可直接按 Enter)", use_container_width=True, type="primary")
+
+    if submitted:
+        clean_amount = exp_amount_str.strip().replace(",", "")
+        if not exp_snack.strip():
+            st.warning("⚠️ 請輸入「點心 / 店家」名稱！")
+        elif not clean_amount.isdigit() or int(clean_amount) <= 0:
+            st.warning("⚠️ 請在金額欄位輸入「大於 0 的純數字」！")
+        else:
+            new_data = pd.DataFrame([{
+                "日期": str(exp_date),
+                "類型": exp_type,
+                "點心/店家": exp_snack.strip(),
+                "飲料": exp_drink.strip(),
+                "金額": int(clean_amount)
+            }])
+            st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_data], ignore_index=True)
+            st.success(f"✅ 新增成功！已記錄「{exp_snack.strip()}」。")
+            st.rerun()
 
 # ---------------------------------------------------------
-# 6. 本月消費明細 (卡片式清單：告別硬邦邦的表格，且無 None)
+# 6. 本月消費明細 (安全渲染，分欄呈現，避免防錯)
 # ---------------------------------------------------------
 st.divider()
 st.subheader("📋 本月消費明細")
 
-# 編輯對話框功能 (Pop-up Dialog)
+# 編輯對話框
 @st.dialog("✏️ 編輯消費紀錄")
 def edit_record_dialog(index_to_edit):
     row = st.session_state.expenses_df.iloc[index_to_edit]
     
-    # 填入原有內容
-    d_date = datetime.strptime(str(row["日期"]), "%Y-%m-%d") if str(row["日期"]) != "nan" else datetime.now()
+    d_date = datetime.strptime(str(row["日期"]), "%Y-%m-%d") if str(row["日期"]) not in ["nan", "None", ""] else datetime.now()
     new_date = st.date_input("日期", d_date)
-    new_type = st.selectbox("類型", ["下午茶", "零食"], index=0 if row["類型"] == "下午茶" else 1)
+    new_type = st.selectbox("類型", ["下午茶", "零食"], index=0 if str(row["類型"]) == "下午茶" else 1)
     new_snack = st.text_input("點心 / 店家", value=str(row["點心/店家"]))
-    new_drink = st.text_input("飲料", value=str(row["飲料"]) if str(row["飲料"]) != "nan" else "")
-    new_amount = st.number_input("金額 ($)", value=int(row["金額"]), min_value=0, step=10)
+    new_drink = st.text_input("飲料", value=str(row["飲料"]) if str(row["飲料"]) not in ["nan", "None"] else "")
+    
+    try:
+        init_amount = int(row["金額"])
+    except (ValueError, TypeError):
+        init_amount = 0
+        
+    new_amount = st.number_input("金額 ($)", value=init_amount, min_value=0, step=10)
     
     if st.button("儲存修改", type="primary", use_container_width=True):
         st.session_state.expenses_df.at[index_to_edit, "日期"] = str(new_date)
@@ -204,25 +206,39 @@ def edit_record_dialog(index_to_edit):
         st.success("修改成功！")
         st.rerun()
 
-if not st.session_state.expenses_df.empty:
-    for idx, row in st.session_state.expenses_df.iterrows():
-        # 用卡片佈局展示每一筆紀錄
-        card_col1, card_col2, card_col3, card_col4, card_col5, card_col6 = st.columns([2, 1.5, 3, 2.5, 2, 2])
-        
-        drink_text = f" ({row['飲料']})" if row['飲料'] and str(row['飲料']) != "nan" else ""
+# 渲染列表
+valid_df = st.session_state.expenses_df.dropna(subset=["點心/店家"])
+valid_df = valid_df[valid_df["點心/店家"].astype(str).str.strip() != ""]
+
+if not valid_df.empty:
+    for idx, row in valid_df.iterrows():
+        # 安全轉型金額
+        try:
+            amt_val = int(row['金額'])
+            amt_display = f"$ {amt_val:,}"
+        except (ValueError, TypeError):
+            amt_display = "$ 0"
+
+        snack_val = str(row['點心/店家']) if str(row['點心/店家']) not in ['nan', 'None'] else ''
+        drink_val = str(row['飲料']) if str(row['飲料']) not in ['nan', 'None', ''] else ''
+
+        # 6 欄佈局：點心與飲料獨立分開，不黏在一起
+        card_col1, card_col2, card_col3, card_col4, card_col5, card_col6, card_col7 = st.columns([2, 1.5, 2.5, 2, 2, 1.5, 1.5])
         
         with card_col1:
             st.write(f"📅 **{row['日期']}**")
         with card_col2:
             st.markdown(f"🏷️ `{row['類型']}`")
         with card_col3:
-            st.write(f"🍵 **{row['點心/店家']}**{drink_text}")
+            st.write(f"🍵 **{snack_val}**")
         with card_col4:
-            st.markdown(f"💰 <span style='font-size:1.1rem; font-weight:bold; color:#1b5e20;'>$ {int(row['金額']):,}</span>", unsafe_allow_html=True)
+            st.write(f"🥤 {drink_val}" if drink_val else "—")
         with card_col5:
+            st.markdown(f"💰 <span style='font-size:1.1rem; font-weight:bold; color:#1b5e20;'>{amt_display}</span>", unsafe_allow_html=True)
+        with card_col6:
             if st.button("✏️ 編輯", key=f"edit_{idx}", use_container_width=True):
                 edit_record_dialog(idx)
-        with card_col6:
+        with card_col7:
             if st.button("🗑️ 刪除", key=f"del_{idx}", use_container_width=True):
                 st.session_state.expenses_df = st.session_state.expenses_df.drop(idx).reset_index(drop=True)
                 st.rerun()

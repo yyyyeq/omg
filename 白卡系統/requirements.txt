@@ -1,4 +1,3 @@
 streamlit
 supabase
 fastapi
-uvicorn

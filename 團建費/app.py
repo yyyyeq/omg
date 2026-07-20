@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from supabase import create_client, Client
 
 # ---------------------------------------------------------
-# 1. 網頁基本設定
+# 1. 網頁基本設定與 Supabase 連線
 # ---------------------------------------------------------
-st.set_page_config(page_title=" 團建費登記系統", layout="wide", page_icon="🍵")
+st.set_page_config(page_title="🍵 團建費登記系統", layout="wide", page_icon="🍵")
 
-# CSS 自訂樣式微調
 st.markdown("""
     <style>
     h1 { padding-bottom: 0.5rem; }
@@ -17,13 +17,28 @@ st.markdown("""
 
 st.title("🍵 團建費登記系統")
 
-# 初始化 Session State
-if "expenses_df" not in st.session_state:
-    st.session_state.expenses_df = pd.DataFrame(columns=["日期", "類型", "點心/店家", "飲料", "金額"])
+# 初始化 Supabase 連線
+try:
+    supabase_url = st.secrets["SUPABASE_URL"]
+    supabase_key = st.secrets["SUPABASE_KEY"]
+    supabase: Client = create_client(supabase_url, supabase_key)
+except Exception as e:
+    st.error("⚠️ 雲端資料庫連線失敗，請檢查 Streamlit Cloud 的 Secrets 設定！")
+    st.stop()
 
-# 清理 Session State 中的無效或空資料 (避免 None 報錯)
-if not st.session_state.expenses_df.empty:
-    st.session_state.expenses_df = st.session_state.expenses_df.dropna(subset=["點心/店家"]).reset_index(drop=True)
+# 從 Supabase 讀取最新資料
+def get_expenses():
+    try:
+        response = supabase.table("expenses").select("*").execute()
+        df = pd.DataFrame(response.data)
+        if df.empty:
+            return pd.DataFrame(columns=["id", "date", "type", "snack", "drink", "amount"])
+        return df
+    except Exception as e:
+        st.error(f"⚠️ 資料讀取失敗: {e}")
+        return pd.DataFrame(columns=["id", "date", "type", "snack", "drink", "amount"])
+
+expenses_df = get_expenses()
 
 # ---------------------------------------------------------
 # 2. 邊欄 (Sidebar)：經費參數設定
@@ -47,10 +62,8 @@ total_available = tea_budget + snack_budget + last_month_balance
 # ---------------------------------------------------------
 st.subheader("📋 經費與預算總覽")
 
-df = st.session_state.expenses_df
-
-tea_spent = pd.to_numeric(df[df["類型"] == "下午茶"]["金額"], errors='coerce').sum() if not df.empty else 0
-snack_spent = pd.to_numeric(df[df["類型"] == "零食"]["金額"], errors='coerce').sum() if not df.empty else 0
+tea_spent = pd.to_numeric(expenses_df[expenses_df["type"] == "下午茶"]["amount"], errors='coerce').sum() if not expenses_df.empty else 0
+snack_spent = pd.to_numeric(expenses_df[expenses_df["type"] == "零食"]["amount"], errors='coerce').sum() if not expenses_df.empty else 0
 total_spent = tea_spent + snack_spent
 
 tea_remaining = tea_budget - tea_spent
@@ -63,7 +76,7 @@ dash_col1, dash_col2 = st.columns(2)
 with dash_col1:
     st.markdown(f"""
         <div style="background-color:#ffeaea; padding: 20px; border-radius: 10px; border: 1px solid #ffcccc; margin-bottom: 20px;">
-            <h4 style="margin: 0; color:#c62828;">🍵 下午茶專區 </h4>
+            <h4 style="margin: 0; color:#c62828;">🍵 下午茶專區 (按週計算)</h4>
             <div style="display: flex; justify-content: space-between; margin-top: 15px;">
                 <div>總預算: <b>${tea_budget:,.0f}</b></div>
                 <div>已支出: <b>${tea_spent:,.0f}</b></div>
@@ -75,7 +88,7 @@ with dash_col1:
 with dash_col2:
     st.markdown(f"""
         <div style="background-color:#e1f5fe; padding: 20px; border-radius: 10px; border: 1px solid #b3e5fc; margin-bottom: 20px;">
-            <h4 style="margin: 0; color:#0277bd;">🍪 零食專區 </h4>
+            <h4 style="margin: 0; color:#0277bd;">🍪 零食專區 (按月計算)</h4>
             <div style="display: flex; justify-content: space-between; margin-top: 15px;">
                 <div>總預算: <b>${snack_budget:,.0f}</b></div>
                 <div>已支出: <b>${snack_spent:,.0f}</b></div>
@@ -103,38 +116,7 @@ with dash_col4:
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 4. 資料備份與還原
-# ---------------------------------------------------------
-st.divider()
-with st.expander("💾 資料備份與還原 ( CSV 檔案 )"):
-    b_col1, b_col2 = st.columns(2)
-
-    with b_col1:
-        csv_bytes = st.session_state.expenses_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
-        st.download_button(
-            label="📥 儲存並下載最新紀錄 (CSV)",
-            data=csv_bytes,
-            file_name=f"團建費明細備份_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-
-    with b_col2:
-        uploaded_file = st.file_uploader("📂 匯入舊的備份檔案 (CSV)", type=["csv"], label_visibility="collapsed")
-        if uploaded_file is not None:
-            try:
-                imported_df = pd.read_csv(uploaded_file)
-                if set(["日期", "類型", "點心/店家", "飲料", "金額"]).issubset(imported_df.columns):
-                    st.session_state.expenses_df = imported_df.dropna(subset=["點心/店家"]).reset_index(drop=True)
-                    st.success("✅ 資料成功還原！")
-                    st.rerun()
-                else:
-                    st.error("⚠️ 檔案欄位不正確，匯入失敗！")
-            except Exception as e:
-                st.error("⚠️ 檔案格式不符，匯入失敗！")
-
-# ---------------------------------------------------------
-# 5. 新增消費紀錄 (使用 st.form 支援按 Enter 鍵提交)
+# 4. 新增消費紀錄 (對應英文欄位名稱寫入)
 # ---------------------------------------------------------
 st.divider()
 st.subheader("➕ 新增消費紀錄")
@@ -152,7 +134,6 @@ with st.form("add_expense_form", clear_on_submit=True):
     with f_col5:
         exp_amount_str = st.text_input("金額 ($)", placeholder="如：4877")
 
-    # 表單提交按鈕 (在任何文字框輸入完按 Enter 均可觸發)
     submitted = st.form_submit_button("確認新增紀錄 (可直接按 Enter)", use_container_width=True, type="primary")
 
     if submitted:
@@ -162,86 +143,72 @@ with st.form("add_expense_form", clear_on_submit=True):
         elif not clean_amount.isdigit() or int(clean_amount) <= 0:
             st.warning("⚠️ 請在金額欄位輸入「大於 0 的純數字」！")
         else:
-            new_data = pd.DataFrame([{
-                "日期": str(exp_date),
-                "類型": exp_type,
-                "點心/店家": exp_snack.strip(),
-                "飲料": exp_drink.strip(),
-                "金額": int(clean_amount)
-            }])
-            st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, new_data], ignore_index=True)
-            st.success(f"✅ 新增成功！已記錄「{exp_snack.strip()}」。")
+            new_data = {
+                "date": str(exp_date),
+                "type": exp_type,
+                "snack": exp_snack.strip(),
+                "drink": exp_drink.strip(),
+                "amount": int(clean_amount)
+            }
+            # 寫入 Supabase
+            supabase.table("expenses").insert(new_data).execute()
+            st.success(f"✅ 已成功新增至雲端！")
             st.rerun()
 
 # ---------------------------------------------------------
-# 6. 本月消費明細 (安全渲染，分欄呈現，避免防錯)
+# 5. 本月消費明細 (對應英文欄位名稱編輯與呈現)
 # ---------------------------------------------------------
 st.divider()
 st.subheader("📋 本月消費明細")
 
-# 編輯對話框
 @st.dialog("✏️ 編輯消費紀錄")
-def edit_record_dialog(index_to_edit):
-    row = st.session_state.expenses_df.iloc[index_to_edit]
-    
-    d_date = datetime.strptime(str(row["日期"]), "%Y-%m-%d") if str(row["日期"]) not in ["nan", "None", ""] else datetime.now()
+def edit_record_dialog(row_id, row_data):
+    d_date = datetime.strptime(str(row_data["date"]), "%Y-%m-%d") if str(row_data["date"]) not in ["nan", "None", ""] else datetime.now()
     new_date = st.date_input("日期", d_date)
-    new_type = st.selectbox("類型", ["下午茶", "零食"], index=0 if str(row["類型"]) == "下午茶" else 1)
-    new_snack = st.text_input("點心 / 店家", value=str(row["點心/店家"]))
-    new_drink = st.text_input("飲料", value=str(row["飲料"]) if str(row["飲料"]) not in ["nan", "None"] else "")
-    
-    try:
-        init_amount = int(row["金額"])
-    except (ValueError, TypeError):
-        init_amount = 0
-        
-    new_amount = st.number_input("金額 ($)", value=init_amount, min_value=0, step=10)
+    new_type = st.selectbox("類型", ["下午茶", "零食"], index=0 if str(row_data["type"]) == "下午茶" else 1)
+    new_snack = st.text_input("點心 / 店家", value=str(row_data["snack"]))
+    new_drink = st.text_input("飲料", value=str(row_data["drink"]) if str(row_data["drink"]) not in ["nan", "None"] else "")
+    new_amount = st.number_input("金額 ($)", value=int(row_data["amount"]), min_value=0, step=10)
     
     if st.button("儲存修改", type="primary", use_container_width=True):
-        st.session_state.expenses_df.at[index_to_edit, "日期"] = str(new_date)
-        st.session_state.expenses_df.at[index_to_edit, "類型"] = new_type
-        st.session_state.expenses_df.at[index_to_edit, "點心/店家"] = new_snack.strip()
-        st.session_state.expenses_df.at[index_to_edit, "飲料"] = new_drink.strip()
-        st.session_state.expenses_df.at[index_to_edit, "金額"] = int(new_amount)
+        updated_data = {
+            "date": str(new_date),
+            "type": new_type,
+            "snack": new_snack.strip(),
+            "drink": new_drink.strip(),
+            "amount": int(new_amount)
+        }
+        # 更新 Supabase
+        supabase.table("expenses").update(updated_data).eq("id", row_id).execute()
         st.success("修改成功！")
         st.rerun()
 
-# 渲染列表
-valid_df = st.session_state.expenses_df.dropna(subset=["點心/店家"])
-valid_df = valid_df[valid_df["點心/店家"].astype(str).str.strip() != ""]
+if not expenses_df.empty:
+    for _, row in expenses_df.iterrows():
+        amt_val = int(row['amount']) if pd.notnull(row['amount']) else 0
+        snack_val = str(row['snack']) if str(row['snack']) not in ['nan', 'None'] else ''
+        drink_val = str(row['drink']) if str(row['drink']) not in ['nan', 'None', ''] else ''
 
-if not valid_df.empty:
-    for idx, row in valid_df.iterrows():
-        # 安全轉型金額
-        try:
-            amt_val = int(row['金額'])
-            amt_display = f"$ {amt_val:,}"
-        except (ValueError, TypeError):
-            amt_display = "$ 0"
-
-        snack_val = str(row['點心/店家']) if str(row['點心/店家']) not in ['nan', 'None'] else ''
-        drink_val = str(row['飲料']) if str(row['飲料']) not in ['nan', 'None', ''] else ''
-
-        # 6 欄佈局：點心與飲料獨立分開，不黏在一起
         card_col1, card_col2, card_col3, card_col4, card_col5, card_col6, card_col7 = st.columns([2, 1.5, 2.5, 2, 2, 1.5, 1.5])
         
         with card_col1:
-            st.write(f"📅 **{row['日期']}**")
+            st.write(f"📅 **{row['date']}**")
         with card_col2:
-            st.markdown(f"🏷️ `{row['類型']}`")
+            st.markdown(f"🏷️ `{row['type']}`")
         with card_col3:
             st.write(f"🍵 **{snack_val}**")
         with card_col4:
             st.write(f"🥤 {drink_val}" if drink_val else "—")
         with card_col5:
-            st.markdown(f"💰 <span style='font-size:1.1rem; font-weight:bold; color:#1b5e20;'>{amt_display}</span>", unsafe_allow_html=True)
+            st.markdown(f"💰 <span style='font-size:1.1rem; font-weight:bold; color:#1b5e20;'>$ {amt_val:,}</span>", unsafe_allow_html=True)
         with card_col6:
-            if st.button("✏️ 編輯", key=f"edit_{idx}", use_container_width=True):
-                edit_record_dialog(idx)
+            if st.button("✏️ 編輯", key=f"edit_{row['id']}", use_container_width=True):
+                edit_record_dialog(row['id'], row)
         with card_col7:
-            if st.button("🗑️ 刪除", key=f"del_{idx}", use_container_width=True):
-                st.session_state.expenses_df = st.session_state.expenses_df.drop(idx).reset_index(drop=True)
+            if st.button("🗑️ 刪除", key=f"del_{row['id']}", use_container_width=True):
+                # 從 Supabase 刪除
+                supabase.table("expenses").delete().eq("id", row['id']).execute()
                 st.rerun()
         st.markdown("<hr style='margin: 8px 0; border: 0.5px solid #f0f0f0;'>", unsafe_allow_html=True)
 else:
-    st.info("目前還沒有任何紀錄，可以直接新增或匯入備份檔案！")
+    st.info("目前還沒有任何紀錄，可以直接新增！")

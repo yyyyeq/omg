@@ -32,16 +32,16 @@ if "expenses_df" not in st.session_state:
 # ---------------------------------------------------------
 st.sidebar.header("⚙️ 月度經費參數設定")
 
-people_count = st.sidebar.number_input("團隊人數", min_value=1, value=10, step=1)
-weeks_count = st.sidebar.number_input("本月週數", min_value=1, max_value=5, value=4, step=1)
-tea_unit_price = st.sidebar.number_input("下午茶單價 ($/人)", min_value=0, value=150, step=10)
-snack_unit_price = st.sidebar.number_input("零食單價 ($/人)", min_value=0, value=50, step=10)
+people_count = st.sidebar.number_input("團隊人數", min_value=1, value=40, step=1)
+weeks_count = st.sidebar.number_input("本月週數 (下午茶用)", min_value=1, max_value=5, value=4, step=1)
+tea_unit_price = st.sidebar.number_input("下午茶單價 ($/人/週)", min_value=0, value=150, step=10)
+snack_unit_price = st.sidebar.number_input("零食額度 ($/人/月)", min_value=0, value=120, step=10)
 st.sidebar.markdown("---") # 分割線
 last_month_balance = st.sidebar.number_input("上月底餘額 ($)", value=0, step=100)
 
-# 計算經費
+# 計算經費：下午茶按週計算、零食按月計算
 tea_budget = people_count * weeks_count * tea_unit_price
-snack_budget = people_count * weeks_count * snack_unit_price
+snack_budget = people_count * snack_unit_price
 total_available = tea_budget + snack_budget + last_month_balance
 
 # ---------------------------------------------------------
@@ -65,7 +65,7 @@ dash_col1, dash_col2 = st.columns(2)
 with dash_col1:
     st.markdown(f"""
         <div style="background-color:#ffeaea; padding: 20px; border-radius: 10px; border: 1px solid #ffcccc; margin-bottom: 20px;">
-            <h4 style="margin: 0; color:#c62828;">🍵 下午茶專區</h4>
+            <h4 style="margin: 0; color:#c62828;">🍵 下午茶專區 (按週計算)</h4>
             <div style="display: flex; justify-content: space-between; margin-top: 15px;">
                 <div>總預算: <b>${tea_budget:,.0f}</b></div>
                 <div>已支出: <b>${tea_spent:,.0f}</b></div>
@@ -77,7 +77,7 @@ with dash_col1:
 with dash_col2:
     st.markdown(f"""
         <div style="background-color:#e1f5fe; padding: 20px; border-radius: 10px; border: 1px solid #b3e5fc; margin-bottom: 20px;">
-            <h4 style="margin: 0; color:#0277bd;">🍪 零食專區</h4>
+            <h4 style="margin: 0; color:#0277bd;">🍪 零食專區 (按月計算)</h4>
             <div style="display: flex; justify-content: space-between; margin-top: 15px;">
                 <div>總預算: <b>${snack_budget:,.0f}</b></div>
                 <div>已支出: <b>${snack_spent:,.0f}</b></div>

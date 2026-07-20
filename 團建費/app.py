@@ -76,7 +76,7 @@ dash_col1, dash_col2 = st.columns(2)
 with dash_col1:
     st.markdown(f"""
         <div style="background-color:#ffeaea; padding: 20px; border-radius: 10px; border: 1px solid #ffcccc; margin-bottom: 20px;">
-            <h4 style="margin: 0; color:#c62828;">🍵 下午茶專區 (按週計算)</h4>
+            <h4 style="margin: 0; color:#c62828;">🍵 下午茶專區 </h4>
             <div style="display: flex; justify-content: space-between; margin-top: 15px;">
                 <div>總預算: <b>${tea_budget:,.0f}</b></div>
                 <div>已支出: <b>${tea_spent:,.0f}</b></div>
@@ -88,7 +88,7 @@ with dash_col1:
 with dash_col2:
     st.markdown(f"""
         <div style="background-color:#e1f5fe; padding: 20px; border-radius: 10px; border: 1px solid #b3e5fc; margin-bottom: 20px;">
-            <h4 style="margin: 0; color:#0277bd;">🍪 零食專區 (按月計算)</h4>
+            <h4 style="margin: 0; color:#0277bd;">🍪 零食專區 </h4>
             <div style="display: flex; justify-content: space-between; margin-top: 15px;">
                 <div>總預算: <b>${snack_budget:,.0f}</b></div>
                 <div>已支出: <b>${snack_spent:,.0f}</b></div>

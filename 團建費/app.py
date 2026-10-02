@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
+import calendar
 from supabase import create_client, Client
 
 # ---------------------------------------------------------
@@ -40,26 +41,29 @@ def get_expenses():
 
 expenses_df = get_expenses()
 
-# 資料預處理：轉換日期格式與產生月份欄位 (YYYY-MM)
+# 資料預處理與連續月份自動產生 (從最早紀錄補齊到當前月份)
+current_now = datetime.now()
+current_month_str = current_now.strftime("%Y-%m")
+
 if not expenses_df.empty:
     expenses_df["amount"] = pd.to_numeric(expenses_df["amount"], errors="coerce").fillna(0)
     expenses_df["date_dt"] = pd.to_datetime(expenses_df["date"], errors="coerce")
     expenses_df["month"] = expenses_df["date_dt"].dt.strftime("%Y-%m")
     
-    # 取得歷史所有月份，並確保「當前月份」也在清單中
-    current_month_str = datetime.now().strftime("%Y-%m")
-    month_set = set(expenses_df["month"].dropna().unique())
-    month_set.add(current_month_str)
-    all_months = sorted(list(month_set))
+    min_date = expenses_df["date_dt"].min()
+    start_date = min_date if pd.notnull(min_date) else current_now
+    
+    # 產生從起算月到本月的完整清單
+    month_range = pd.date_range(start=start_date.replace(day=1), end=current_now.replace(day=1), freq="MS")
+    all_months = sorted(list(set(month_range.strftime("%Y-%m").tolist() + expenses_df["month"].dropna().tolist())))
 else:
     expenses_df["month"] = ""
-    all_months = [datetime.now().strftime("%Y-%m")]
+    all_months = [current_month_str]
 
 # ---------------------------------------------------------
 # 2. 邊欄 (Sidebar)：月份選擇與經費參數設定
 # ---------------------------------------------------------
 st.sidebar.header("📅 月份選擇")
-# 預設選擇最新月份 (清單最後一個)
 selected_month = st.sidebar.selectbox(
     "選擇檢視月份",
     all_months,
@@ -69,27 +73,32 @@ selected_month = st.sidebar.selectbox(
 st.sidebar.markdown("---")
 st.sidebar.header(f"⚙️ {selected_month} 經費參數")
 
+# 自動推算該月週數 (以該月週五數量為準，常見 4 或 5 週)
+sel_y, sel_m = map(int, selected_month.split("-"))
+cal = calendar.monthcalendar(sel_y, sel_m)
+default_weeks = sum(1 for week in cal if week[calendar.FRIDAY] != 0)
+if default_weeks < 4:
+    default_weeks = 4
+
 people_count = st.sidebar.number_input("團隊人數", min_value=1, value=40, step=1)
-weeks_count = st.sidebar.number_input("本月週數 (下午茶用)", min_value=1, max_value=5, value=4, step=1)
+weeks_count = st.sidebar.number_input("本月週數 (下午茶用)", min_value=1, max_value=5, value=default_weeks, step=1)
 tea_unit_price = st.sidebar.number_input("下午茶單價 ($/人/週)", min_value=0, value=160, step=10)
 snack_unit_price = st.sidebar.number_input("零食額度 ($/人/月)", min_value=0, value=120, step=10)
 
-# 計算所選月份的基礎額度
+# 本月基準預算
 current_tea_budget = people_count * weeks_count * tea_unit_price
 current_snack_budget = people_count * snack_unit_price
 monthly_standard_budget = current_tea_budget + current_snack_budget
 
 # ---------------------------------------------------------
-# 自動計算上月滾動結餘
+# 自動計算滾動歷史結餘
 # ---------------------------------------------------------
-# 找出早於目前所選月份的所有歷史月份
 earlier_months = [m for m in all_months if m < selected_month]
 auto_balance = 0
 
 if earlier_months and not expenses_df.empty:
     for m in earlier_months:
         m_spent = expenses_df[expenses_df["month"] == m]["amount"].sum()
-        # 每個歷史月份按標準額度計算結餘 (若歷史月份有不同週數或人數，亦可在此微調)
         auto_balance += (monthly_standard_budget - m_spent)
 
 st.sidebar.markdown("---")
@@ -103,11 +112,10 @@ else:
 total_available = monthly_standard_budget + last_month_balance
 
 # ---------------------------------------------------------
-# 3. 主畫面：總覽儀表板 (篩選當前月份)
+# 3. 主畫面：總覽儀表板
 # ---------------------------------------------------------
 st.subheader(f"📋 【{selected_month}】經費與預算總覽")
 
-# 篩選所選月份的花費明細
 current_month_df = expenses_df[expenses_df["month"] == selected_month] if not expenses_df.empty else pd.DataFrame()
 
 tea_spent = current_month_df[current_month_df["type"] == "下午茶"]["amount"].sum() if not current_month_df.empty else 0
@@ -163,15 +171,21 @@ with dash_col4:
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 4. 新增消費紀錄
+# 4. 新增消費紀錄 (智慧綁定當前檢視月份)
 # ---------------------------------------------------------
 st.divider()
 st.subheader("➕ 新增消費紀錄")
 
+# 智慧預設日期：若檢視的不是本月，預設切到該月 1 號
+if selected_month == current_month_str:
+    default_form_date = current_now.date()
+else:
+    default_form_date = date(sel_y, sel_m, 1)
+
 with st.form("add_expense_form", clear_on_submit=True):
     f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([2, 2, 3, 3, 2])
     with f_col1:
-        exp_date = st.date_input("日期", datetime.now())
+        exp_date = st.date_input("日期", default_form_date)
     with f_col2:
         exp_type = st.selectbox("類型", ["下午茶", "零食"])
     with f_col3:
@@ -202,10 +216,12 @@ with st.form("add_expense_form", clear_on_submit=True):
             st.rerun()
 
 # ---------------------------------------------------------
-# 5. 當月消費明細 (僅顯示所選月份)
+# 5. 當月消費明細與匯出
 # ---------------------------------------------------------
 st.divider()
-st.subheader(f"📋 【{selected_month}】消費明細")
+head_col1, head_col2 = st.columns([8, 2])
+with head_col1:
+    st.subheader(f"📋 【{selected_month}】消費明細")
 
 @st.dialog("✏️ 編輯消費紀錄")
 def edit_record_dialog(row_id, row_data):
@@ -229,9 +245,18 @@ def edit_record_dialog(row_id, row_data):
         st.rerun()
 
 if not current_month_df.empty:
-    # 依日期由新到舊排序
     current_month_df = current_month_df.sort_values(by="date", ascending=False)
     
+    with head_col2:
+        export_csv = current_month_df[["date", "type", "snack", "drink", "amount"]].to_csv(index=False).encode("utf-8-sig")
+        st.download_button(
+            label="📥 匯出當月明細 CSV",
+            data=export_csv,
+            file_name=f"team_expenses_{selected_month}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
     for _, row in current_month_df.iterrows():
         amt_val = int(row['amount']) if pd.notnull(row['amount']) else 0
         snack_val = str(row['snack']) if str(row['snack']) not in ['nan', 'None'] else ''

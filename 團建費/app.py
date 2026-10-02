@@ -82,7 +82,7 @@ if default_weeks < 4:
 
 people_count = st.sidebar.number_input("團隊人數", min_value=1, value=40, step=1)
 weeks_count = st.sidebar.number_input("本月週數 (下午茶用)", min_value=1, max_value=5, value=default_weeks, step=1)
-tea_unit_price = st.sidebar.number_input("下午茶單價 ($/人/週)", min_value=0, value=160, step=10)
+tea_unit_price = st.sidebar.number_input("下午茶扣打 ($/人/週)", min_value=0, value=160, step=10)
 snack_unit_price = st.sidebar.number_input("零食額度 ($/人/月)", min_value=0, value=120, step=10)
 
 # 本月基準預算
